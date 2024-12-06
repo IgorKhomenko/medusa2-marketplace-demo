@@ -1,21 +1,11 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk";
-import {
-  ContainerRegistrationKeys,
-  Modules,
-  PaymentCollectionStatus,
-} from "@medusajs/framework/utils";
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
 import { IPaymentModuleService } from "@medusajs/framework/types";
-
-export type CreateOrderPaymentCollectionAutorizedInput = {
-  order_id: string;
-  amount: number;
-  currencyCode: string;
-  regionId: string;
-};
+import { CreatePaymentCollectionAutorizedInput } from "..";
 
 export const createOrderPaymentCollectionAutorizedStep = createStep(
   "create-order-payment-collection-autorized-step",
-  async (input: CreateOrderPaymentCollectionAutorizedInput, { container }) => {
+  async (input: CreatePaymentCollectionAutorizedInput, { container }) => {
     const paymentModuleService = container.resolve<IPaymentModuleService>(
       Modules.PAYMENT
     );
@@ -27,9 +17,9 @@ export const createOrderPaymentCollectionAutorizedStep = createStep(
           region_id: input.regionId,
           currency_code: input.currencyCode,
           amount: input.amount,
-          status: PaymentCollectionStatus.AUTHORIZED,
-          authorized_amount: input.amount,
-          captured_amount: input.amount,
+          status: input.status,
+          authorized_amount: input.authorized_amount,
+          captured_amount: input.captured_amount,
         } as any,
       ]);
     const paymentCollectionId = paymentCollections[0].id;
@@ -38,7 +28,7 @@ export const createOrderPaymentCollectionAutorizedStep = createStep(
     const remoteLink = container.resolve(ContainerRegistrationKeys.REMOTE_LINK);
     await remoteLink.create({
       [Modules.ORDER]: {
-        order_id: input.order_id,
+        order_id: input.orderId,
       },
       [Modules.PAYMENT]: {
         payment_collection_id: paymentCollectionId,
@@ -47,7 +37,7 @@ export const createOrderPaymentCollectionAutorizedStep = createStep(
 
     return new StepResponse(paymentCollections[0], {
       paymentCollectionId,
-      orderId: input.order_id,
+      orderId: input.orderId,
     });
   },
   async ({ paymentCollectionId, orderId }, { container }) => {

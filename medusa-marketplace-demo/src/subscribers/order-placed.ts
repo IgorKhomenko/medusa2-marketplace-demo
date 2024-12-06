@@ -79,50 +79,56 @@ export default async function orderPlacedHandler({
 
   // create child orders, each order will have store's related items only
   //
-  for (const storeId in groupedItemsPerStore) {
-    // create child order
-    const childOrder = await orderModuleService.createOrders({
-      ...order,
-      id: undefined,
-      shipping_address_id: undefined,
-      shipping_address: {
-        ...order.shipping_address,
+  if (Object.keys(groupedItemsPerStore).length > 1) {
+    for (const storeId in groupedItemsPerStore) {
+      // create child order
+      const childOrder = await orderModuleService.createOrders({
+        ...order,
         id: undefined,
-      },
-      billing_address_id: undefined,
-      billing_address: {
-        ...order.billing_address,
-        id: undefined,
-      },
-      items: groupedItemsPerStore[storeId],
-      shipping_methods: order.shipping_methods.map((sm) => ({
-        ...sm,
-        id: undefined,
-      })),
-      metadata: { parentOrderId: order.id, transactionHash: "123" },
-    });
-
-    // copy payment
-    const createdPaymentCollection =
-      await createOrderPaymentCollectionAutorizedWorkflow(container).run({
-        input: {
-          orderId: childOrder.id,
-          amount: paymentCollection.amount as number,
-          currencyCode: paymentCollection.currency_code,
-          regionId: paymentCollection.region_id,
+        shipping_address_id: undefined,
+        shipping_address: {
+          ...order.shipping_address,
+          id: undefined,
         },
+        billing_address_id: undefined,
+        billing_address: {
+          ...order.billing_address,
+          id: undefined,
+        },
+        items: groupedItemsPerStore[storeId],
+        shipping_methods: order.shipping_methods.map((sm) => ({
+          ...sm,
+          id: undefined,
+        })),
+        // metadata: {  },
       });
 
-    // link order to store
-    await linkOrderToStoreWorkflow(container).run({
-      input: {
-        orderId: childOrder.id,
-        storeId: storeId,
-      },
-    });
-  }
+      // copy payment
+      const createdPaymentCollection =
+        await createOrderPaymentCollectionAutorizedWorkflow(container).run({
+          input: {
+            orderId: childOrder.id,
+            amount: paymentCollection.amount,
+            authorized_amount: paymentCollection.authorized_amount,
+            captured_amount: paymentCollection.captured_amount,
+            currencyCode: paymentCollection.currency_code,
+            regionId: paymentCollection.region_id,
+            status: paymentCollection.status,
+          },
+        });
 
-  console.log(`The order ${order.id} was created`);
+      // link order to store
+      await linkOrderToStoreWorkflow(container).run({
+        input: {
+          orderId: childOrder.id,
+          storeId: storeId,
+        },
+      });
+    }
+
+    // delete origin order
+    await orderModuleService.deleteOrders(order.id);
+  }
 }
 
 // subscriber config
